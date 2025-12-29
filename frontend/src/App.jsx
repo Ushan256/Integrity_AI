@@ -4,7 +4,7 @@ import {
   Shield, AlertTriangle, Search, Loader2, CheckCircle2, Lock, Zap, Globe, 
   Menu, X, History, LayoutDashboard, Trash2, Sun, Moon, 
   FileText, RefreshCw, Copy, Edit3, Repeat, Sparkles, HelpCircle, User, Bot, 
-  LogIn, ArrowRight, Mail, Key, Eye, PenTool, Clock, AlertOctagon, Fingerprint, RotateCcw, Gamepad2, Trophy, Target, Dna
+  LogIn, ArrowRight, Mail, Key, Eye, PenTool, Clock, AlertOctagon, Fingerprint, RotateCcw, Gamepad2, Trophy, Target, Dna, Code
 } from 'lucide-react';
 
 function App() {
@@ -14,6 +14,11 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [backendStatus, setBackendStatus] = useState({ status: "Checking...", device: "" });
   
+  // Code Detector State
+  const [codeText, setCodeText] = useState('');
+  const [codeResult, setCodeResult] = useState(null);
+  const [codeLoading, setCodeLoading] = useState(false);
+
   // Paraphraser State
   const [paraInput, setParaInput] = useState('');
   const [paraSentences, setParaSentences] = useState([]); 
@@ -96,6 +101,30 @@ function App() {
   };
 
   // --- ACTIONS ---
+  const resetApp = () => { 
+      setText(''); setResult(null); 
+      setCodeText(''); setCodeResult(null);
+      setCurrentView('scan'); 
+  };
+  
+  const toggleTheme = () => { const t = isDark ? 'light' : 'dark'; setThemeState(t); localStorage.setItem('integrityTheme', t); };
+  
+  const clearHistory = () => { 
+      if (confirm("Clear logs?")) { 
+          setHistory([]); 
+          if(currentUser) localStorage.removeItem(`integrityHistory_${currentUser.email}`); 
+      } 
+  };
+  
+  const restoreHistoryItem = (item) => {
+    if (item.type === 'scan') { setText(item.fullText); setResult({ prediction: item.prediction, confidence: item.confidence, risk_level: item.risk, breakdown: item.breakdown }); setCurrentView('scan'); }
+    else if (item.type === 'code') { setCodeText(item.fullText); setCodeResult({ prediction: item.prediction, confidence: item.confidence, risk_level: item.risk, perplexity: 0 }); setCurrentView('code'); }
+    else if (item.type === 'proof') { setWriteText(item.textSnippet); setProofResult(item.report); setCurrentView('write'); }
+    else if (item.type === 'game') { setGameInput(item.textSnippet); setGamePrompt(item.result.prompt); setGameResult(item.result); setCurrentView('game'); }
+    else { setParaInput(item.original); setParaSentences(item.result.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [item.result]); setCurrentView('paraphrase'); }
+    setIsSidebarOpen(false);
+  };
+
   const handleAnalyze = async () => {
     if (!text.trim()) return;
     setLoading(true); setResult(null);
@@ -113,6 +142,23 @@ function App() {
       saveToHistory(newEntry);
     } catch (e) { alert("Backend Error"); }
     setLoading(false);
+  };
+
+  const handleCodeAnalyze = async () => {
+    if (!codeText.trim()) return;
+    setCodeLoading(true); setCodeResult(null);
+    try {
+        const response = await axios.post('http://127.0.0.1:8000/analyze_code', { content: codeText });
+        const res = response.data;
+        setCodeResult(res);
+        
+        saveToHistory({ 
+            id: Date.now(), type: 'code', textSnippet: codeText.substring(0, 50)+"...", fullText: codeText, 
+            prediction: res.prediction, confidence: res.confidence, risk: res.risk_level, 
+            date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString() 
+        });
+    } catch (e) { alert("Backend Error"); }
+    setCodeLoading(false);
   };
 
   const handleParaphrase = async () => {
@@ -262,17 +308,6 @@ function App() {
     return isDark ? 'bg-emerald-500/10 text-emerald-200' : 'bg-green-50 text-green-800';
   };
 
-  const resetApp = () => { setText(''); setResult(null); setCurrentView('scan'); };
-  const toggleTheme = () => { const t = isDark ? 'light' : 'dark'; setThemeState(t); localStorage.setItem('integrityTheme', t); };
-  const clearHistory = () => { if (confirm("Clear logs?")) { setHistory([]); if(currentUser) localStorage.removeItem(`integrityHistory_${currentUser.email}`); } };
-  const restoreHistoryItem = (item) => {
-    if (item.type === 'scan') { setText(item.fullText); setResult({ prediction: item.prediction, confidence: item.confidence, risk_level: item.risk, breakdown: item.breakdown }); setCurrentView('scan'); }
-    else if (item.type === 'proof') { setWriteText(item.textSnippet); setProofResult(item.report); setCurrentView('write'); }
-    else if (item.type === 'game') { setGameInput(item.textSnippet); setGamePrompt(item.result.prompt); setGameResult(item.result); setCurrentView('game'); }
-    else { setParaInput(item.original); setParaSentences(item.result.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [item.result]); setCurrentView('paraphrase'); }
-    setIsSidebarOpen(false);
-  };
-
   return (
     <div className={`relative min-h-screen font-sans transition-colors duration-500 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`} onClick={() => { setActiveWord({ idx: -1, sentIdx: -1 }); setActiveSentence(-1); }}>
       
@@ -289,6 +324,7 @@ function App() {
           <div className="flex items-center justify-between mb-10"><span className={`font-bold text-xl ${isDark ? 'text-white' : 'text-slate-900'}`}>IntegrityAI</span><button onClick={() => setIsSidebarOpen(false)}><X size={24} className="text-slate-500"/></button></div>
           <nav className="flex-grow space-y-2">
             <button onClick={() => {setCurrentView('scan'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium ${currentView === 'scan' ? 'bg-blue-600 text-white' : isDark ? 'text-slate-400 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-100'}`}><LayoutDashboard size={20}/>Scanner</button>
+            <button onClick={() => {setCurrentView('code'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium ${currentView === 'code' ? 'bg-blue-600 text-white' : isDark ? 'text-slate-400 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-100'}`}><Code size={20}/>Code Scanner</button>
             <button onClick={() => {setCurrentView('write'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium ${currentView === 'write' ? 'bg-blue-600 text-white' : isDark ? 'text-slate-400 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-100'}`}><PenTool size={20}/>Live Writer</button>
             <button onClick={() => {setCurrentView('game'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium ${currentView === 'game' ? 'bg-blue-600 text-white' : isDark ? 'text-slate-400 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-100'}`}><Gamepad2 size={20}/>Fool the AI</button>
             <button onClick={() => {setCurrentView('paraphrase'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium ${currentView === 'paraphrase' ? 'bg-blue-600 text-white' : isDark ? 'text-slate-400 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-100'}`}><RefreshCw size={20}/>Paraphraser</button>
@@ -404,6 +440,41 @@ function App() {
             <div className="grid md:grid-cols-3 gap-6 w-full max-w-5xl mt-24 mb-12">
                {[ { icon: Lock, title: "Local Privacy", desc: "Data never leaves your local GPU." }, { icon: Zap, title: "RoBERTa Engine", desc: "Powered by fine-tuned models." }, { icon: Globe, title: "Offline Capable", desc: "No internet required." } ].map((f, i) => (<div key={i} className={`p-6 rounded-2xl border ${isDark ? 'bg-slate-900/50 border-white/5' : 'bg-white border-slate-200'}`}><f.icon className="text-blue-500 mb-4" size={24} /><h4 className={`font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{f.title}</h4><p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{f.desc}</p></div>))}
             </div>
+          </div>
+        )}
+
+        {/* CODE SCANNER VIEW (NEW) */}
+        {currentView === 'code' && (
+          <div className="w-full flex flex-col items-center animate-fade-in mt-8">
+            <div className="text-center max-w-3xl space-y-6 mb-12"><h1 className={`text-5xl md:text-7xl font-black tracking-tighter leading-tight bg-clip-text text-transparent ${isDark ? 'bg-gradient-to-b from-white to-slate-500' : 'bg-gradient-to-b from-slate-900 to-slate-500'}`}>Analyze Code <span className="text-blue-500">Integrity.</span></h1></div>
+            <div className="w-full max-w-4xl relative group">
+               <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+               <div className={`relative backdrop-blur-xl border rounded-3xl p-2 shadow-2xl ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-white/80 border-slate-200'}`}>
+                 <textarea className={`w-full h-64 bg-transparent p-6 text-sm font-mono focus:outline-none resize-none leading-relaxed rounded-2xl ${isDark ? 'text-slate-200 placeholder-slate-600' : 'text-slate-800 placeholder-slate-400'}`} placeholder="Paste Python, JS, C++ code here..." value={codeText} onChange={(e) => setCodeText(e.target.value.slice(0, 5000))} />
+                 <div className={`flex justify-between items-center px-6 py-4 border-t rounded-b-2xl ${isDark ? 'border-white/5 bg-slate-950/30' : 'border-slate-100 bg-slate-50/50'}`}>
+                   <span className="text-xs font-mono text-slate-500 uppercase">{codeText.length} / 5000 chars</span>
+                   <button onClick={handleCodeAnalyze} disabled={codeLoading || !codeText} className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold flex gap-2 items-center">{codeLoading ? <Loader2 className="animate-spin"/> : <Code/>}{codeLoading ? "Scanning..." : "Analyze Code"}</button>
+                 </div>
+               </div>
+            </div>
+            
+            {codeResult && (() => {
+               const style = getRiskColor(codeResult.risk_level);
+               return (
+                 <div className="w-full max-w-4xl mt-10 animate-in fade-in slide-in-from-bottom-6">
+                   <div className={`p-1 rounded-3xl bg-gradient-to-br ${style.gradient}`}>
+                     <div className={`backdrop-blur-2xl rounded-[22px] p-8 ${isDark ? 'bg-slate-950/90 border-white/10' : 'bg-white/90 border-white/40'}`}>
+                       <div className="flex flex-col md:flex-row items-center justify-between gap-10">
+                         <div className="flex items-center gap-6"><div className={`p-4 rounded-2xl ${style.bg} ${style.text}`}>{style.icon}</div><div><h3 className={`text-3xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{codeResult.prediction}</h3><span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded ${style.bg} ${style.badgeText}`}>Risk: {codeResult.risk_level}</span></div></div>
+                         <div className="text-right"><div className={`text-7xl font-black ${style.text}`}>{codeResult.confidence}%</div><p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Confidence Score</p></div>
+                       </div>
+                       <div className={`h-px w-full my-8 ${isDark ? 'bg-white/10' : 'bg-slate-200'}`}></div>
+                       <p className="text-center opacity-70">Code Perplexity: {codeResult.perplexity} (Lower = More predictable/AI)</p>
+                     </div>
+                   </div>
+                 </div>
+               );
+            })()}
           </div>
         )}
 
@@ -564,14 +635,15 @@ function App() {
                      <div className="flex-grow pr-8">
                        <div className="flex items-center gap-3 mb-2">
                          {item.type === 'scan' ? <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.risk === 'High' ? 'bg-red-500/20 text-red-500' : item.risk === 'Medium' ? 'bg-yellow-500/20 text-yellow-600' : 'bg-emerald-500/20 text-emerald-500'}`}>{item.prediction}</span> 
+                         : item.type === 'code' ? <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.risk === 'High' ? 'bg-red-500/20 text-red-500' : item.risk === 'Medium' ? 'bg-yellow-500/20 text-yellow-600' : 'bg-emerald-500/20 text-emerald-500'}`}>Code: {item.prediction}</span>
                          : item.type === 'proof' ? <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.report.score < 50 ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'}`}>Proof: {item.report.verdict}</span>
                          : item.type === 'game' ? <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.result.win ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>Game: {item.result.win ? 'Won' : 'Lost'}</span>
                          : <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-500/20 text-indigo-400">{item.tone} Paraphrase</span>}
                          <span className="text-slate-400 text-xs font-mono">{item.date} • {item.time}</span>
                        </div>
-                       <p className={`font-medium line-clamp-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>"{item.type === 'proof' ? item.textSnippet : (item.type === 'scan' ? item.textSnippet : (item.type === 'game' ? item.textSnippet : item.original))}"</p>
+                       <p className={`font-medium line-clamp-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>"{item.type === 'proof' ? item.textSnippet : (item.type === 'scan' || item.type === 'code' ? item.textSnippet : (item.type === 'game' ? item.textSnippet : item.original))}"</p>
                      </div>
-                     {item.type === 'scan' ? <div className={`text-xl font-black ${item.risk === 'High' ? 'text-red-500' : item.risk === 'Medium' ? 'text-yellow-500' : 'text-emerald-500'}`}>{item.confidence}%</div> 
+                     {item.type === 'scan' || item.type === 'code' ? <div className={`text-xl font-black ${item.risk === 'High' ? 'text-red-500' : item.risk === 'Medium' ? 'text-yellow-500' : 'text-emerald-500'}`}>{item.confidence}%</div> 
                      : item.type === 'proof' ? <div className={`text-xl font-black ${item.report.score < 50 ? 'text-red-500' : 'text-emerald-500'}`}>{item.report.score}%</div>
                      : item.type === 'game' ? <div className={`text-xl font-black ${item.result.win ? 'text-emerald-500' : 'text-red-500'}`}>{item.result.humanScore}%</div>
                      : <div className="text-indigo-500"><RefreshCw size={24}/></div>}
