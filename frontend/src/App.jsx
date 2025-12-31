@@ -69,7 +69,7 @@ function App() {
   const [authPassword, setAuthPassword] = useState('');
 
   useEffect(() => {
-    axios.get('https://ironic-helen-semiconsciously.ngrok-free.dev/').then(res => setBackendStatus(res.data)).catch(() => {});
+    axios.get('https://integrityai-backend.onrender.com/').then(res => setBackendStatus(res.data)).catch(() => {});
     const savedTheme = localStorage.getItem('integrityTheme');
     if (savedTheme) setThemeState(savedTheme);
   }, []);
@@ -130,7 +130,7 @@ function App() {
     if (!text.trim()) return;
     setLoading(true); setResult(null);
     try {
-      const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/analyze', { content: text });
+      const response = await axios.post('https://integrityai-backend.onrender.com/analyze', { content: text });
       const scanResult = response.data;
       setResult(scanResult);
       
@@ -149,7 +149,7 @@ function App() {
     if (!codeText.trim()) return;
     setCodeLoading(true); setCodeResult(null);
     try {
-        const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/analyze_code', { content: codeText });
+        const response = await axios.post('https://integrityai-backend.onrender.com/analyze_code', { content: codeText });
         const res = response.data;
         setCodeResult(res);
         
@@ -166,7 +166,7 @@ function App() {
     if (!paraInput.trim()) return;
     setParaLoading(true); setParaSentences([]);
     try {
-      const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/paraphrase', { content: paraInput, tone: tone });
+      const response = await axios.post('https://integrityai-backend.onrender.com/paraphrase', { content: paraInput, tone: tone });
       const rawText = response.data.paraphrased;
       const splitSentences = rawText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [rawText];
       setParaSentences(splitSentences.map(s => s.trim()));
@@ -236,7 +236,7 @@ function App() {
     if (!gameInput.trim()) return;
     setLoading(true);
     try {
-      const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/analyze', { content: gameInput });
+      const response = await axios.post('https://integrityai-backend.onrender.com/analyze', { content: gameInput });
       const scan = response.data;
       let humanScore = scan.risk_level === 'Low' ? scan.confidence : (100 - scan.confidence);
       if (humanScore < 0) humanScore = 0;
@@ -253,13 +253,13 @@ function App() {
     const cleanWord = word.replace(/[^\w\s]/gi, '');
     if (!cleanWord) return;
     setActiveWord({ idx: wordIdx, sentIdx: sentIdx }); setActiveSentence(-1); setLoadingSuggestions(true); setSuggestions([]);
-    try { const res = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/synonyms', { word: cleanWord }); setSuggestions(res.data.synonyms); } catch (e) {} setLoadingSuggestions(false);
+    try { const res = await axios.post('https://integrityai-backend.onrender.com/synonyms', { word: cleanWord }); setSuggestions(res.data.synonyms); } catch (e) {} setLoadingSuggestions(false);
   };
 
   const handleSentenceClick = async (e, sentence, sentIdx) => {
     e.stopPropagation(); calculatePosition(e);
     setActiveSentence(sentIdx); setActiveWord({ idx: -1, sentIdx: -1 }); setLoadingSuggestions(true); setSuggestions([]);
-    try { const res = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/rewrite_sentence', { sentence: sentence, tone: tone }); setSuggestions(res.data.variants); } catch (e) {} setLoadingSuggestions(false);
+    try { const res = await axios.post('https://integrityai-backend.onrender.com/rewrite_sentence', { sentence: sentence, tone: tone }); setSuggestions(res.data.variants); } catch (e) {} setLoadingSuggestions(false);
   };
 
   const replaceWord = (sentIdx, wordIdx, newWord) => {
