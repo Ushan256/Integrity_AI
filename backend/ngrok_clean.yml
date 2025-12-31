@@ -1,0 +1,13 @@
+
+version: "2"
+authtoken: 37ZQnyn5gkja50gAEfeItU5cfj7_44ZmikrsmSZbidKM66CRg
+tunnels:
+  backend_api:
+    proto: http
+    addr: 8000
+    # No domain here -> Forces Random URL
+    
+  frontend_app:
+    proto: http
+    addr: 5173
+    domain: ironic-helen-semiconsciously.ngrok-free.dev

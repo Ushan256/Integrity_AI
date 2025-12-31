@@ -1,0 +1,14 @@
+version: "2"
+authtoken: 37ZQnyn5gkja50gAEfeItU5cfj7_44ZmikrsmSZbidKM66CRg
+tunnels:
+  # Tunnel 1: Backend (API) - Forces a Random URL
+  my-api:
+    proto: http
+    addr: 8000
+    # Do NOT add a domain line here.
+
+  # Tunnel 2: Frontend (Phone) - Uses your Custom Domain
+  my-app:
+    proto: http
+    addr: 5173
+    domain: ironic-helen-semiconsciously.ngrok-free.dev

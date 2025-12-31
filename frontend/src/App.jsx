@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { 
@@ -68,7 +69,7 @@ function App() {
   const [authPassword, setAuthPassword] = useState('');
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/').then(res => setBackendStatus(res.data)).catch(() => {});
+    axios.get('https://ironic-helen-semiconsciously.ngrok-free.dev/').then(res => setBackendStatus(res.data)).catch(() => {});
     const savedTheme = localStorage.getItem('integrityTheme');
     if (savedTheme) setThemeState(savedTheme);
   }, []);
@@ -129,7 +130,7 @@ function App() {
     if (!text.trim()) return;
     setLoading(true); setResult(null);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/analyze', { content: text });
+      const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/analyze', { content: text });
       const scanResult = response.data;
       setResult(scanResult);
       
@@ -148,7 +149,7 @@ function App() {
     if (!codeText.trim()) return;
     setCodeLoading(true); setCodeResult(null);
     try {
-        const response = await axios.post('http://127.0.0.1:8000/analyze_code', { content: codeText });
+        const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/analyze_code', { content: codeText });
         const res = response.data;
         setCodeResult(res);
         
@@ -165,7 +166,7 @@ function App() {
     if (!paraInput.trim()) return;
     setParaLoading(true); setParaSentences([]);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/paraphrase', { content: paraInput, tone: tone });
+      const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/paraphrase', { content: paraInput, tone: tone });
       const rawText = response.data.paraphrased;
       const splitSentences = rawText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [rawText];
       setParaSentences(splitSentences.map(s => s.trim()));
@@ -235,7 +236,7 @@ function App() {
     if (!gameInput.trim()) return;
     setLoading(true);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/analyze', { content: gameInput });
+      const response = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/analyze', { content: gameInput });
       const scan = response.data;
       let humanScore = scan.risk_level === 'Low' ? scan.confidence : (100 - scan.confidence);
       if (humanScore < 0) humanScore = 0;
@@ -252,13 +253,13 @@ function App() {
     const cleanWord = word.replace(/[^\w\s]/gi, '');
     if (!cleanWord) return;
     setActiveWord({ idx: wordIdx, sentIdx: sentIdx }); setActiveSentence(-1); setLoadingSuggestions(true); setSuggestions([]);
-    try { const res = await axios.post('http://127.0.0.1:8000/synonyms', { word: cleanWord }); setSuggestions(res.data.synonyms); } catch (e) {} setLoadingSuggestions(false);
+    try { const res = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/synonyms', { word: cleanWord }); setSuggestions(res.data.synonyms); } catch (e) {} setLoadingSuggestions(false);
   };
 
   const handleSentenceClick = async (e, sentence, sentIdx) => {
     e.stopPropagation(); calculatePosition(e);
     setActiveSentence(sentIdx); setActiveWord({ idx: -1, sentIdx: -1 }); setLoadingSuggestions(true); setSuggestions([]);
-    try { const res = await axios.post('http://127.0.0.1:8000/rewrite_sentence', { sentence: sentence, tone: tone }); setSuggestions(res.data.variants); } catch (e) {} setLoadingSuggestions(false);
+    try { const res = await axios.post('https://ironic-helen-semiconsciously.ngrok-free.dev/rewrite_sentence', { sentence: sentence, tone: tone }); setSuggestions(res.data.variants); } catch (e) {} setLoadingSuggestions(false);
   };
 
   const replaceWord = (sentIdx, wordIdx, newWord) => {
@@ -276,24 +277,62 @@ function App() {
     setParaSentences(newSentences); setActiveSentence(-1);
   };
 
-  // --- AUTH LOGIC ---
-  const handleAuth = (e) => {
+// --- UPDATED AUTH LOGIC (SUPABASE) ---
+  const handleAuth = async (e) => {
     e.preventDefault();
-    const storedUsers = JSON.parse(localStorage.getItem('integrity_users') || '[]');
+    setLoading(true);
+
     if (isLoginView) {
-      const userFound = storedUsers.find(u => u.email === authEmail && u.password === authPassword);
-      if (userFound) {
-        setCurrentUser(userFound); loadUserHistory(userFound.email); setCurrentView('scan'); setAuthEmail(''); setAuthPassword('');
-      } else { alert("Invalid credentials! Please check email or password."); }
+      // LOGIN LOGIC
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword,
+      });
+
+      if (error) {
+        alert("Error logging in: " + error.message);
+      } else {
+        // Success! Supabase returns the user object
+        const user = { 
+            name: data.user.user_metadata.full_name || authEmail.split('@')[0], 
+            email: data.user.email,
+            id: data.user.id
+        };
+        setCurrentUser(user);
+        setCurrentView('scan');
+        setAuthEmail('');
+        setAuthPassword('');
+      }
     } else {
-      if (storedUsers.find(u => u.email === authEmail)) { alert("User already exists!"); return; }
-      const newUser = { name: authName, email: authEmail, password: authPassword };
-      storedUsers.push(newUser); localStorage.setItem('integrity_users', JSON.stringify(storedUsers));
-      alert("Account Created! Please Sign In."); setIsLoginView(true); setAuthName(''); setAuthPassword('');
+      // SIGN UP LOGIC
+      const { data, error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+        options: {
+          data: {
+            full_name: authName, // Storing the name as metadata
+          },
+        },
+      });
+
+      if (error) {
+        alert("Error signing up: " + error.message);
+      } else {
+        alert("Account Created! You can now log in.");
+        setIsLoginView(true);
+        setAuthName('');
+        setAuthPassword('');
+      }
     }
+    setLoading(false);
   };
 
-  const handleLogout = () => { setCurrentUser(null); setHistory([]); setIsLoginView(true); setAuthEmail(''); setAuthPassword(''); };
+  const handleLogout = async () => { 
+        await supabase.auth.signOut();
+        setCurrentUser(null); 
+        setHistory([]); 
+        setIsLoginView(true); 
+    };
 
   // --- STYLING HELPERS ---
   const getRiskColor = (risk) => {
